@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receptive Phonics Assessment</title>
+    <style>
+        :root {
+            --primary: #4A90E2;
+            --bg: #F0F4F8;
+            --card-bg: #FFFFFF;
+            --correct: #66BB6A;
+            --incorrect: #EF5350;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--card-bg);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 800px;
+            text-align: center;
+        }
+
+        h1 { margin-bottom: 10px; color: #333; }
+        
+        /* Setup Screen */
+        .input-group { margin-bottom: 20px; text-align: left; }
+        select, input { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; margin-top: 5px;}
+        label { font-weight: bold; color: #555; }
+        
+        .btn-start {
+            background-color: var(--primary);
+            color: white;
+            padding: 15px 30px;
+            font-size: 18px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        /* Game Screen */
+        #game-screen { display: none; }
+
+        .teacher-prompt {
+            background-color: #e3f2fd;
+            border: 2px dashed var(--primary);
+            color: #1565c0;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .tts-btn {
+            background: white;
+            border: 1px solid #1565c0;
+            color: #1565c0;
+            padding: 5px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .tts-btn:active { background: #e3f2fd; }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .option-card {
+            background: white;
+            border: 3px solid #eee;
+            border-radius: 15px;
+            height: 150px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 4rem;
+            font-weight: bold;
+            color: #333;
+            cursor: pointer;
+            transition: transform 0.1s, border-color 0.2s;
+        }
+
+        .option-card:active { transform: scale(0.96); }
+        .option-card:hover { border-color: #ccc; }
+
+        /* Feedback States */
+        .card-correct { background-color: var(--correct) !important; color: white !important; border-color: var(--correct) !important; }
+        .card-wrong { background-color: var(--incorrect) !important; color: white !important; border-color: var(--incorrect) !important; opacity: 0.6; }
+
+        /* Results */
+        #results-screen { display: none; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: left; }
+        .btn-dl { background-color: #333; color: white; padding: 10px 20px; border-radius: 5px; border:none; margin-top:20px; cursor: pointer;}
+
+    </style>
+</head>
+<body>
+
+    <div class="container" id="setup-screen">
+        <h1>Grapheme Selector</h1>
+        <p>Receptive Assessment: "Find the sound"</p>
+
+        <div class="input-group">
+            <label>Student Name:</label>
+            <input type="text" id="student-name" placeholder="Student Name">
+        </div>
+
+        <div class="input-group">
+            <label>Phase to Assess:</label>
+            <select id="phase-select">
+                <option value="2">Phase 2</option>
+                <option value="3">Phase 3</option>
+                <option value="5">Phase 5</option>
+                <option value="rapid">Rapid Catch-up (All Graphemes)</option>
+            </select>
+        </div>
+
+        <button class="btn-start" onclick="startGame()">Start Assessment</button>
+    </div>
+
+    <div class="container" id="game-screen">
+        <div style="font-size: 0.9rem; color: #888; margin-bottom: 10px;" id="progress-text">Question 1</div>
+
+        <div class="teacher-prompt">
+            <span>Ask student to find: <strong id="target-display" style="font-size:1.5rem">s</strong></span>
+            <button class="tts-btn" onclick="playAudio()">🔊 Robot Voice</button>
+        </div>
+
+        <div class="grid-container" id="options-grid">
+            </div>
+    </div>
+
+    <div class="container" id="results-screen">
+        <h1>Assessment Complete</h1>
+        <p id="score-summary">Scored 80%</p>
+        <button class="btn-dl" onclick="downloadCSV()">Download Report</button>
+        
+        <div style="max-height: 300px; overflow-y: auto;">
+            <table id="results-table">
+                <thead><tr><th>Target</th><th>Selected</th><th>Result</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <button class="btn-start" style="margin-top:20px; background:#888" onclick="location.reload()">New Assessment</button>
+    </div>
+
+    <script>
+        // Data
+        const phases = {
+            '2': ['s','a','t','p','i','n','m','d','g','o','c','k','ck','e','u','r','h','b','f','ff','l','ll','ss'],
+            '3': ['j','v','w','x','y','z','zz','qu','ch','sh','th','ng','ai','ee','igh','oa','oo','ar','or','ur','ow','oi','ear','air','ure','er'],
+            '5': ['ay','ou','ie','ea','oy','ir','ue','aw','wh','ph','ew','oe','au','a-e','e-e','i-e','o-e','u-e']
+        };
+        phases['rapid'] = [...phases['2'], ...phases['3'], ...phases['5']];
+
+        let currentQueue = [];
+        let currentIndex = 0;
+        let results = [];
+        let currentTarget = "";
+        let studentName = "";
+        let isProcessing = false;
+
+        function startGame() {
+            studentName = document.getElementById('student-name').value || "Student";
+            const phaseKey = document.getElementById('phase-select').value;
+            const sourceList = [...phases[phaseKey]]; // Copy array
+            
+            // Randomize order
+            currentQueue = sourceList.sort(() => Math.random() - 0.5);
+            
+            currentIndex = 0;
+            results = [];
+            
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'block';
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            if(currentIndex >= currentQueue.length) {
+                endGame();
+                return;
+            }
+
+            isProcessing = false;
+            currentTarget = currentQueue[currentIndex];
+            const phaseKey = document.getElementById('phase-select').value;
+            const fullList = phases[phaseKey];
+
+            document.getElementById('progress-text').innerText = `Question ${currentIndex + 1} of ${currentQueue.length}`;
+            document.getElementById('target-display').innerText = currentTarget;
+
+            // Generate Distractors
+            let distractors = [];
+            while(distractors.length < 3) {
+                const r = fullList[Math.floor(Math.random() * fullList.length)];
+                if(r !== currentTarget && !distractors.includes(r)) {
+                    distractors.push(r);
+                }
+            }
+
+            // Create Options Array (Target + 3 Distractors)
+            let options = [currentTarget, ...distractors];
+            options.sort(() => Math.random() - 0.5); // Shuffle positions
+
+            // Render Grid
+            const grid = document.getElementById('options-grid');
+            grid.innerHTML = '';
+            
+            options.forEach(opt => {
+                const btn = document.createElement('div');
+                btn.className = 'option-card';
+                btn.innerText = opt;
+                btn.onclick = () => handleSelection(opt, btn);
+                grid.appendChild(btn);
+            });
+        }
+
+        function handleSelection(selectedVal, btnElement) {
+            if(isProcessing) return;
+            isProcessing = true;
+
+            const isCorrect = selectedVal === currentTarget;
+            
+            // Visual Feedback
+            if(isCorrect) {
+                btnElement.classList.add('card-correct');
+            } else {
+                btnElement.classList.add('card-wrong');
+                // Highlight the correct one so they learn
+                const allBtns = document.querySelectorAll('.option-card');
+                allBtns.forEach(b => {
+                    if(b.innerText === currentTarget) b.classList.add('card-correct');
+                });
+            }
+
+            // Record Data
+            results.push({
+                target: currentTarget,
+                selected: selectedVal,
+                correct: isCorrect
+            });
+
+            // Wait 1 second then next
+            setTimeout(() => {
+                currentIndex++;
+                loadQuestion();
+            }, 1000);
+        }
+
+        function playAudio() {
+            // Basic TTS attempt - not perfect for phonics but functional
+            const u = new SpeechSynthesisUtterance(currentTarget);
+            u.lang = 'en-GB'; 
+            u.rate = 0.8; // Slightly slower
+            window.speechSynthesis.speak(u);
+        }
+
+        function endGame() {
+            document.getElementById('game-screen').style.display = 'none';
+            document.getElementById('results-screen').style.display = 'block';
+
+            const correct = results.filter(r => r.correct).length;
+            const pct = Math.round((correct / results.length) * 100);
+            document.getElementById('score-summary').innerText = `${studentName} scored ${pct}% (${correct}/${results.length})`;
+
+            const tbody = document.querySelector('#results-table tbody');
+            tbody.innerHTML = '';
+            results.forEach(r => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="font-weight:bold">${r.target}</td>
+                        <td style="color:${r.correct ? 'green' : 'red'}">${r.selected}</td>
+                        <td>${r.correct ? '✓' : '✗'}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function downloadCSV() {
+            let csv = `Student,${studentName}\nType,Receptive (Grapheme Selection)\n\nTarget,Selected,Result\n`;
+            results.forEach(r => {
+                csv += `${r.target},${r.selected},${r.correct ? 'Correct' : 'Incorrect'}\n`;
+            });
+            
+            const link = document.createElement("a");
+            link.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
+            link.download = `${studentName}_Receptive_Report.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
