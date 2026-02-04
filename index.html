@@ -11,6 +11,7 @@
             --card-bg: #FFFFFF;
             --correct: #66BB6A;
             --incorrect: #EF5350;
+            --peek: #333;
         }
 
         body {
@@ -23,6 +24,9 @@
             min-height: 100vh;
             margin: 0;
             padding: 20px;
+            /* Prevent selecting text so kids don't accidentally highlight things */
+            user-select: none; 
+            -webkit-user-select: none;
         }
 
         .container {
@@ -56,29 +60,62 @@
         /* Game Screen */
         #game-screen { display: none; }
 
-        .teacher-prompt {
-            background-color: #e3f2fd;
-            border: 2px dashed var(--primary);
-            color: #1565c0;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            font-size: 1.2rem;
+        /* ANTI-CHEAT PROMPT STYLES */
+        .teacher-prompt-area {
             display: flex;
-            justify-content: space-between;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 25px;
+            align-items: stretch;
+        }
+
+        .peek-button {
+            background-color: var(--peek);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 20px;
+            font-size: 1rem;
+            cursor: pointer;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
             align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 0 #000;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .peek-button:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #000;
+        }
+        
+        .peek-content {
+            display: none; /* Hidden by default */
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #FFD700; /* Gold text */
+        }
+        
+        .peek-label {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .tts-btn {
-            background: white;
-            border: 1px solid #1565c0;
-            color: #1565c0;
-            padding: 5px 15px;
-            border-radius: 20px;
+            background: #e3f2fd;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            padding: 0 20px;
+            border-radius: 12px;
             cursor: pointer;
-            font-size: 0.9rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .tts-btn:active { background: #e3f2fd; }
+        .tts-btn:active { background: #bbdefb; }
 
         .grid-container {
             display: grid;
@@ -121,7 +158,7 @@
 
     <div class="container" id="setup-screen">
         <h1>Grapheme Selector</h1>
-        <p>Receptive Assessment: "Find the sound"</p>
+        <p>Receptive Mode (Anti-Cheat)</p>
 
         <div class="input-group">
             <label>Student Name:</label>
@@ -144,9 +181,14 @@
     <div class="container" id="game-screen">
         <div style="font-size: 0.9rem; color: #888; margin-bottom: 10px;" id="progress-text">Question 1</div>
 
-        <div class="teacher-prompt">
-            <span>Ask student to find: <strong id="target-display" style="font-size:1.5rem">s</strong></span>
-            <button class="tts-btn" onclick="playAudio()">🔊 Robot Voice</button>
+        <div class="teacher-prompt-area">
+            <button class="peek-button" id="peek-btn">
+                <span class="peek-label" id="peek-label">Teacher: Touch & Hold</span>
+                <span class="peek-content" id="peek-content">s</span>
+            </button>
+            <button class="tts-btn" onclick="playAudio()">
+               🔊 Robot
+            </button>
         </div>
 
         <div class="grid-container" id="options-grid">
@@ -176,6 +218,22 @@
         };
         phases['rapid'] = [...phases['2'], ...phases['3'], ...phases['5']];
 
+        // PHONETIC MAPPING FOR ROBOT VOICE
+        // This maps the Grapheme to a "misspelling" that sounds correct on iPad voices.
+        const phoneticSpelling = {
+            's': 'ssss', 'a': 'ah', 't': 'tuh', 'p': 'puh', 'i': 'ih', 'n': 'nnn', 'm': 'mmm', 'd': 'duh',
+            'g': 'guh', 'o': 'oh', 'c': 'kuh', 'k': 'kuh', 'ck': 'kuh', 'e': 'eh', 'u': 'uh', 'r': 'ruh',
+            'h': 'huh', 'b': 'buh', 'f': 'fff', 'ff': 'fff', 'l': 'lll', 'll': 'lll', 'ss': 'ssss',
+            'j': 'juh', 'v': 'vvv', 'w': 'wuh', 'x': 'ks', 'y': 'yuh', 'z': 'zzz', 'zz': 'zzz',
+            'qu': 'kwuh', 'ch': 't-ch', 'sh': 'shhh', 'th': 'thuh', 'ng': 'ng',
+            'ai': 'ay', 'ee': 'eee', 'igh': 'eye', 'oa': 'oh', 'oo': 'ooh',
+            'ar': 'are', 'or': 'or', 'ur': 'urr', 'ow': 'ow', 'oi': 'oy', 
+            'ear': 'ear', 'air': 'air', 'ure': 'yore', 'er': 'uh',
+            'ay': 'ay', 'ou': 'ow', 'ie': 'eye', 'ea': 'eee', 'oy': 'oy', 'ir': 'urr', 'ue': 'yoo', 'aw': 'or',
+            'wh': 'wuh', 'ph': 'fff', 'ew': 'yoo', 'oe': 'oh', 'au': 'or',
+            'a-e': 'ay', 'e-e': 'eee', 'i-e': 'eye', 'o-e': 'oh', 'u-e': 'yoo'
+        };
+
         let currentQueue = [];
         let currentIndex = 0;
         let results = [];
@@ -183,12 +241,33 @@
         let studentName = "";
         let isProcessing = false;
 
+        // --- PEEK BUTTON LOGIC ---
+        const peekBtn = document.getElementById('peek-btn');
+        const peekLabel = document.getElementById('peek-label');
+        const peekContent = document.getElementById('peek-content');
+
+        function showPeek() {
+            peekLabel.style.display = 'none';
+            peekContent.style.display = 'block';
+        }
+
+        function hidePeek() {
+            peekContent.style.display = 'none';
+            peekLabel.style.display = 'block';
+        }
+
+        // Handle Touch (iPad) and Mouse (Desktop)
+        peekBtn.addEventListener('mousedown', showPeek);
+        peekBtn.addEventListener('mouseup', hidePeek);
+        peekBtn.addEventListener('mouseleave', hidePeek);
+        peekBtn.addEventListener('touchstart', (e) => { e.preventDefault(); showPeek(); });
+        peekBtn.addEventListener('touchend', (e) => { e.preventDefault(); hidePeek(); });
+
         function startGame() {
             studentName = document.getElementById('student-name').value || "Student";
             const phaseKey = document.getElementById('phase-select').value;
-            const sourceList = [...phases[phaseKey]]; // Copy array
+            const sourceList = [...phases[phaseKey]]; 
             
-            // Randomize order
             currentQueue = sourceList.sort(() => Math.random() - 0.5);
             
             currentIndex = 0;
@@ -211,7 +290,7 @@
             const fullList = phases[phaseKey];
 
             document.getElementById('progress-text').innerText = `Question ${currentIndex + 1} of ${currentQueue.length}`;
-            document.getElementById('target-display').innerText = currentTarget;
+            document.getElementById('peek-content').innerText = currentTarget;
 
             // Generate Distractors
             let distractors = [];
@@ -224,7 +303,7 @@
 
             // Create Options Array (Target + 3 Distractors)
             let options = [currentTarget, ...distractors];
-            options.sort(() => Math.random() - 0.5); // Shuffle positions
+            options.sort(() => Math.random() - 0.5); 
 
             // Render Grid
             const grid = document.getElementById('options-grid');
@@ -245,37 +324,35 @@
 
             const isCorrect = selectedVal === currentTarget;
             
-            // Visual Feedback
             if(isCorrect) {
                 btnElement.classList.add('card-correct');
             } else {
                 btnElement.classList.add('card-wrong');
-                // Highlight the correct one so they learn
-                const allBtns = document.querySelectorAll('.option-card');
-                allBtns.forEach(b => {
+                // Auto-highlight correct answer for learning
+                document.querySelectorAll('.option-card').forEach(b => {
                     if(b.innerText === currentTarget) b.classList.add('card-correct');
                 });
             }
 
-            // Record Data
             results.push({
                 target: currentTarget,
                 selected: selectedVal,
                 correct: isCorrect
             });
 
-            // Wait 1 second then next
             setTimeout(() => {
                 currentIndex++;
                 loadQuestion();
-            }, 1000);
+            }, 1500); // Slightly longer pause so they see the correction
         }
 
         function playAudio() {
-            // Basic TTS attempt - not perfect for phonics but functional
-            const u = new SpeechSynthesisUtterance(currentTarget);
+            // Use the map, or fallback to the letter itself if missing
+            const textToSpeak = phoneticSpelling[currentTarget] || currentTarget;
+            
+            const u = new SpeechSynthesisUtterance(textToSpeak);
             u.lang = 'en-GB'; 
-            u.rate = 0.8; // Slightly slower
+            u.rate = 0.8; 
             window.speechSynthesis.speak(u);
         }
 
